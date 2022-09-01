@@ -301,9 +301,7 @@ public class MongoDbStreamingChangeEventSource implements StreamingChangeEventSo
             if (primaryClient != null) {
                 try {
                     primaryClient.execute("get oplog position", primary -> {
-                        MongoCollection<BsonDocument> oplog = primary.getDatabase("local").getCollection("oplog.rs", BsonDocument.class);
-                        BsonDocument last = oplog.find().sort(new Document("$natural", -1)).limit(1).first(); // may be null
-                        positions.put(replicaSet, last);
+                        positions.put(replicaSet, MongoUtil.getOplogEntry(primary, -1));
                     });
                 }
                 finally {

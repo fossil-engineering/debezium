@@ -17,7 +17,10 @@ import java.util.regex.Pattern;
 import org.bson.BsonDocument;
 import org.bson.BsonValue;
 import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import com.mongodb.MongoQueryException;
 import com.mongodb.ReadPreference;
 import com.mongodb.ServerAddress;
 import com.mongodb.client.MongoClient;
@@ -58,6 +61,8 @@ public class MongoUtil {
      * by square brackets. The raw expression is {@code (\[[^]]+\])(:(\d+))?}.
      */
     private static final Pattern IPV6_ADDRESS_PATTERN = Pattern.compile("(\\[[^]]+\\])(:(\\d+))?");
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(MongoUtil.class);
 
     /**
      * Find the name of the replica set precedes the host addresses.
@@ -389,6 +394,22 @@ public class MongoUtil {
         }
 
         return description;
+    }
+
+    public static BsonDocument getOplogEntry(MongoClient primary, int sortOrder) throws MongoQueryException {
+        try {
+            MongoCollection<BsonDocument> oplog = primary.getDatabase("local").getCollection("oplog.rs", BsonDocument.class);
+            return oplog.find().sort(new Document("$natural", sortOrder)).limit(1).first();
+        }
+        catch (MongoQueryException e) {
+            if (e.getMessage().contains("$natural:") && e.getMessage().contains("is not supported")) {
+                final String sortOrderType = sortOrder == -1 ? "descending" : "ascending";
+                // Amazon DocumentDB does not support oplog
+                LOGGER.info("Natural {} sort is not supported on oplog, treating situation as no oplog entry exists.", sortOrderType);
+                return null;
+            }
+            throw e;
+        }
     }
 
     private MongoUtil() {
